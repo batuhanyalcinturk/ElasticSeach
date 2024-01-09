@@ -1,11 +1,11 @@
 package com.graysan.elasticsearch.util;
 
-import co.elastic.clients.elasticsearch._types.query_dsl.MatchAllQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.MatchQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import co.elastic.clients.elasticsearch._types.query_dsl.*;
 import co.elastic.clients.util.ObjectBuilder;
+import com.graysan.elasticsearch.dto.SearchRequestDto;
 import lombok.experimental.UtilityClass;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -24,6 +24,44 @@ public class ESUtil {
         return new MatchQuery.Builder()
                 .field(fieldName)
                 .query(searchValue)
+                .build();
+    }
+
+    public static Supplier<Query> createBoolQuery(SearchRequestDto dto) {
+        return () -> Query.of(q -> q.bool(boolQuery(dto.getFieldName().get(0), dto.getSearchValue().get(0),
+                dto.getFieldName().get(1), dto.getSearchValue().get(1))));
+    }
+
+    private static BoolQuery boolQuery(String key1, String value1, String key2, String value2) {
+        return new BoolQuery.Builder()
+                .filter(termQuery(key1,value1))
+                .must(matchQuery(key2,value2))
+                .build();
+
+    }
+
+    private static Query termQuery(String field, String value) {
+        return Query.of(q -> q.term(new TermQuery.Builder()
+                .field(field)
+                .value(value)
+                .build()));
+    }
+
+    private static Query matchQuery(String field, String value) {
+        return Query.of(q -> q.match(new MatchQuery.Builder()
+                .field(field)
+                .query(value)
+                .build()));
+    }
+
+    public static Query buildAutoSuggestQuery(String name) {
+        return Query.of(q -> q.match(createAutoSuggestMatchQuery(name)));
+    }
+    public static MatchQuery createAutoSuggestMatchQuery(String name) {
+        return new MatchQuery.Builder()
+                .field("name")
+                .query(name)
+                .analyzer("custom_index")
                 .build();
     }
 }

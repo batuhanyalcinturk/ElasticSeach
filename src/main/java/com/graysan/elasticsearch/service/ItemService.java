@@ -1,7 +1,7 @@
 package com.graysan.elasticsearch.service;
 
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.graysan.elasticsearch.dto.SearchRequestDto;
@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -76,4 +77,47 @@ public class ItemService {
     }
 
 
+    public List<Item> searchItemsByNameAndBrandWithQuery(String name, String brand) {
+        return itemRepository.searchByNameAndBrand(name,brand);
+    }
+
+    public List<Item> boolQuery(SearchRequestDto dto) {
+        var query = ESUtil.createBoolQuery(dto);
+        log.info("ElasticSearch query: {}", query.toString());
+        SearchResponse<Item> response = null;
+        try {
+            response = elasticsearchClient.search(
+                    q -> q.index("items_index").query(query.get()), Item.class);
+        }catch (IOException e){
+            throw new RuntimeException(e);
+        }
+        log.info("ElasticSearch response: {}", response.toString());
+        return extractItemsFromResponse(response);
+    }
+
+    public Set<String> findSuggestedItemNames(String itemName) {
+        Query autoSuggestQuery = ESUtil.buildAutoSuggestQuery(itemName);
+        log.info("Elasticsearch query: {}", autoSuggestQuery.toString());
+
+        try {
+            return elasticsearchClient.search(q -> q.index("items_index").query(autoSuggestQuery), Item.class)
+                    .hits()
+                    .hits()
+                    .stream()
+                    .map(Hit::source)
+                    .map(Item::getName)
+                    .collect(Collectors.toSet());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<String> autoSuggestItemsByNameWithQuery(String name) {
+        List<Item> items = itemRepository.customAutocompleteSearch(name);
+        log.info("Elasticsearch response: {}", items.toString());
+        return items
+                .stream()
+                .map(Item::getName)
+                .collect(Collectors.toList());
+    }
 }
